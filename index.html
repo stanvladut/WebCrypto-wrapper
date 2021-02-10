@@ -1,0 +1,126 @@
+<html>
+    <style>
+        .password_popup {
+            position: absolute;
+            top: 50%;
+            display: block;
+            left: 50%;
+            transform: translate(-50%,-50%);
+            background-color: lightgray;
+            padding: 100px;
+            display: none;
+        }
+    </style>
+    <body>
+        <button class="initialize">Initalize</button>  
+        <button class="encrypt">Encrypt</button>  
+        <button class="decrypt">Decrypt</button>  
+        <button class="setPrivate">Set Private</button>  
+        <button class="setPublic">Set Public</button>  
+        <button class="getPrivate">Get Private</button>  
+        <button class="getPublic">Get Public</button>  
+        <div class="password_popup">
+            <h3>Type a password</h3>
+            <input class="password_input" type="password"/>
+            <button class="submit_password">Submit</button>
+        </div>
+    </body>
+    <script src="webcrypto-wrapper.js" type="application/javascript"></script>
+    <script>
+        var getMasterPassword = function() {
+            return new Promise(function(resolve, reject){
+                document.getElementsByClassName("password_popup")[0].style.display = "block";
+                document.getElementsByClassName("submit_password")[0].addEventListener('click', function(){
+                    document.getElementsByClassName("password_popup")[0].style.display = "none";
+                    resolve(document.getElementsByClassName("password_input")[0].value);
+                });
+            });
+        };
+        
+        var RSAProperties = {
+            modulus: 1024,
+            exponent: new Uint8Array([0x01, 0x00, 0x01]),
+            hash: {name: "SHA-256"},
+            isExtractable: true
+        }
+                        
+        var PBKDF2Properties = {
+            masterPassword: 'test',
+            iterations: 100000,
+            algorithm: {
+                name: "AES-GCM",
+                length: 256
+            },
+            hash: {name: "SHA-256"},
+            isExtractable: false
+        }
+
+        var AESProperties = {
+            additionalData: 'AU2Voi3I9Y0H5wNAPLpl',
+            tagLength: 128
+        }
+                   
+        var keys;
+        
+        var initialized = false;
+        document.getElementsByClassName("initialize")[0].addEventListener('click', function(){
+            if (initialized) {
+               var initialize = getKeys();
+                initialize();
+            } else {
+                getMasterPassword()
+                    .then(function(MasterPassword){
+                        
+                        createNewEnvironment(RSAProperties, PBKDF2Properties, AESProperties)
+                            .then(function(data){
+                                console.log("1",data);
+                                keys = data;
+                            
+                                PBKDF2Properties.salt = data.salt;
+                                AESProperties.iv = data.iv;
+                                AESProperties.data = data.encryptedPrivateKey;
+                            
+                                setEnvironment(PBKDF2Properties, AESProperties)
+                                    .then(function(data2){
+                                        keys.decryptedPrivateKey = data2.decryptedRSAPrivateKey;
+                                        console.log("2", data2);
+                                    
+                                        var resources = {
+                                            userID: AESProperties.additionalData,
+                                            type: "text",
+                                            data: {
+                                                body: "ana are mere"
+                                            }
+                                        },
+                                            interlocutorKey= data.publicKey,
+                                            privateKey= data2.decryptedRSAPrivateKey;
+                                    
+                                    
+                                        encryptResources(resources, interlocutorKey, privateKey, data.publicKey)
+                                            .then(function(data3){
+                                                console.log("3",data3);
+                                            
+                                                decryptResources(data3, interlocutorKey, AESProperties.additionalData, privateKey)
+                                                    .then(function(data4){
+                                                        console.log("4",data4);
+                                                    
+                                                        decryptResources(data3, data.publicKey, AESProperties.additionalData, privateKey)
+                                                        .then(function(data5){
+                                                            console.log("5", data5);
+                                                            
+                                                            var newMasterPassword = "test1";
+                                                            changeMasterPassword(PBKDF2Properties, AESProperties, newMasterPassword)
+                                                            .then(function(newPass){
+                                                                console.log("6", newPass);
+                                                            });
+                                                        })
+                                                    })
+                                            })
+                                    })
+                            })
+                    })
+                    .catch();                
+            }
+        });
+    </script>
+</html>
